@@ -1,0 +1,6 @@
+[submodule "inc/CP0-EU"]
+	path = inc/CP0-EU
+	url = https://github.com/TuriSc/CP0-EU
+[submodule "inc/utf8-iterator"]
+	path = inc/utf8-iterator
+	url = https://github.com/adrianwk94/utf8-iterator
