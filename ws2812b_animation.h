@@ -53,6 +53,7 @@ typedef struct FX_t {
     uint32_t step_ms;
     bool running;
     bool ending;
+    bool canceled;
     bool clear_on_end;
     // Text only:
     char *str;
@@ -101,6 +102,7 @@ FX_t* ws2812b_spritesheet(const uGRB32_t **spritesheet, uint8_t frames,
                     uint16_t delay, uint32_t loops);
 FX_t* ws2812b_animate(uint32_t from, uint32_t to, FX_mode_t mode,
                     const uGRB32_t colors[8], uint32_t loops, uint32_t param);
+void ws2812b_cancel(FX_t* FX);
 FX_t* ws2812b_text_type(char *str, uGRB32_t grb, uint16_t delay);
 FX_t* ws2812b_text_scroll(char *str, uGRB32_t grb, uint16_t delay);
 

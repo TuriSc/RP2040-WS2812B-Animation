@@ -384,11 +384,15 @@ void ws2812b_sprite_tint(const uGRB32_t *sprite, uGRB32_t grb) {
 
 static int64_t spritesheet_frame(alarm_id_t id, void *user_data) {
     FX_t* FX = (FX_t*)user_data;
+    if(FX->canceled) {
+        FX->running = false;
+        return 0;
+    }
     if(FX->ending) {
         FX->running = false;
         FX->ending = false;
         FX->callback(FX);
-        return false;
+        return 0;
     }
     ws2812b_sprite(FX->spritesheet[FX->cursor]);
     ws2812b_render();
@@ -520,6 +524,11 @@ static void fx_fade(void *user_data) {
 static int64_t animation_step(alarm_id_t id, void *user_data) {
     FX_t* FX = (FX_t*)user_data;
 
+    if(FX->canceled) {
+        FX->running = false;
+        return 0;
+    }
+
     if(FX->ending) {
         if(FX->clear_on_end) { // Cleanup
             ws2812b_fill(FX->from, FX->to, 0x0);
@@ -580,6 +589,7 @@ FX_t* ws2812b_animate(uint32_t from, uint32_t to, FX_mode_t mode,
     fxs[seg_id].callback = noop;
     fxs[seg_id].running = true;
     fxs[seg_id].ending = false;
+    fxs[seg_id].canceled = false;
     fxs[seg_id].clear_on_end = true;
 
     switch(mode) {
@@ -620,4 +630,8 @@ FX_t* ws2812b_animate(uint32_t from, uint32_t to, FX_mode_t mode,
     if(animation_timers[seg_id]) cancel_alarm(animation_timers[seg_id]);
     animation_timers[seg_id] = add_alarm_in_ms(config.animation_step_ms, animation_step, &fxs[seg_id], false);
     return &fxs[seg_id];
+}
+
+void ws2812b_cancel(FX_t* FX){
+    FX->canceled = true;
 }

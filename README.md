@@ -117,6 +117,10 @@ FX_t* ws2812b_text_scroll(char *str, uGRB32_t grb, uint16_t delay);
 FX_t* ws2812b_animate(uint32_t from, uint32_t to, FX_mode_t mode,
                     const uGRB32_t colors[8], uint32_t loops, uint32_t param);
 ```
+```
+// Cancel an animation
+void ws2812b_cancel(FX_t* FX);
+```
 
 ### Limitations
 RGBW LED strip are not supported.<br>
@@ -128,4 +132,5 @@ RP2040-WS2812B-Animation is an original project.<br>
 It uses [PIO code](https://github.com/raspberrypi/pico-examples/blob/master/pio/ws2812/ws2812.pio) by Raspberry Pi (Trading) Ltd, licensed under BSD 3.
 
 ### Version history
+- 2023-12-09 - v1.0.1 - Added ws2812b_cancel
 - 2023-11-30 - v1.0.0 - First release

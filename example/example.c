@@ -125,6 +125,8 @@ int main() {
     FX_t* animation_random = ws2812b_animate(0, NUM_PIXELS-1, FX_RANDOM, colors_rainbow, 3, 12);
     while (animation_random->running){ sleep_ms(10); }
 
+    // Animations can be canceled with ws2812b_cancel(FX_pointer)
+
     // FX_BLINK: fills all pixels between start and end using one of two alternating colors
     FX_t* animation_blink = ws2812b_animate(0, NUM_PIXELS-1, FX_BLINK, colors_red_yellow_black, 2, 12);
     while (animation_blink->running){ sleep_ms(10); }
