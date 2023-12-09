@@ -164,6 +164,7 @@ void ws2812b_clear() {
     for(uint32_t i=0; i<config.num_pixels; i++) {
         ws2812b_buffer[i] = 0;
     }
+    ws2812b_render();
 }
 
 void ws2812b_put(uint16_t pixel, uGRB32_t grb) {
