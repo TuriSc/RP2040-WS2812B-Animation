@@ -1,10 +1,7 @@
-/*
- * RP2040-WS2812B-Animation
- * C library to display animated effects on WS2812B LED strips and matrices with Raspberry Pi Pico.
- * By Turi Scandurra – https://turiscandurra.com/circuits
- *
- * PIO code by Raspberry Pi (Trading) Ltd, licensed under BSD 3:
- * https://github.com/raspberrypi/pico-examples/blob/master/pio/ws2812/ws2812.pio
+/**
+ * @file ws2812b_animation.c
+ * @brief C library to display animated effects on WS2812B LED strips and matrices with Raspberry Pi Pico.
+ * @author Turi Scandurra - https://turiscandurra.com/circuits
  */
 
 #include <stdlib.h>
@@ -17,23 +14,70 @@
 #include "CP0_EU_8x8.h" // https://github.com/TuriSc/CP0-EU
 #include "utf-8.h"      // https://github.com/adrianwk94/utf8-iterator
 
+/**
+ * @brief UTF-8 iterator for text rendering.
+ */
 static utf8_iter ITER;
 
+/**
+ * @brief Buffer to store pixel data.
+ */
 static uGRB32_t *ws2812b_buffer;
+
+/**
+ * @brief Text effect structure.
+ */
 static FX_t FX_text;
+
+/**
+ * @brief Array of effect structures.
+ */
 static FX_t fxs[MAX_EFFECTS];
+
+/**
+ * @brief Timer ID for frame-by-frame rendering.
+ */
 static alarm_id_t frame_by_frame_timer;
+
+/**
+ * @brief Timer ID for rendering.
+ */
 static repeating_timer_t rendering_timer;
+
+/**
+ * @brief Array of timer IDs for animation effects.
+ */
 static alarm_id_t animation_timers[MAX_EFFECTS];
 
+/**
+ * @brief Flag to request rendering.
+ */
 static bool request_render;
+
+/**
+ * @brief Character being rendered.
+ */
 static const char* Character;
+
+/**
+ * @brief Double buffer for text rendering.
+ */
 static int double_buffer[8][16];
+
+/**
+ * @brief Configuration structure for WS2812B LED strip.
+ */
 static struct ws2812b_config config;
+
+/**
+ * @brief No mask for WS2812B LED strip.
+ */
 static uint8_t *no_mask;
 
-/* Utilities */
-
+/**
+ * @brief Get an available segment for an effect.
+ * @return Available segment index.
+ */
 static uint8_t get_available_segment() {
     for (uint8_t i = 0; i < MAX_EFFECTS; i++) {
         if (!fxs[i].running) { return i; }
@@ -41,6 +85,9 @@ static uint8_t get_available_segment() {
     return MAX_EFFECTS - 1; // Fallback
 }
 
+/**
+ * @brief Initialize random number generator.
+ */
 static void init_random() {
     if(!config.random_seeded) {
         srand(time_us_64());
@@ -48,15 +95,32 @@ static void init_random() {
     }
 }
 
+/**
+ * @brief No-op function for callback.
+ * @param user_data User data.
+ */
 static void noop(void *user_data) { ; }
 
-/* Color functions */
+/**
+ * @brief Color functions.
+ */
 
-// r = 0 to 255, g = 0 to 255), b = 0 to 255 
+/**
+ * @brief Create a 24-bit color from RGB values.
+ * @param r Red component (0-255).
+ * @param g Green component (0-255).
+ * @param b Blue component (0-255).
+ * @return 24-bit color value.
+ */
 uGRB32_t ws2812b_rgb(uint8_t r, uint8_t g, uint8_t b) {  // 24bit
     return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
 }
 
+/**
+ * @brief Create a 24-bit color from a hexadecimal value.
+ * @param hex Hexadecimal value.
+ * @return 24-bit color value.
+ */
 uGRB32_t ws2812b_hex(uint32_t hex) {
     uint8_t r = (hex >> 16u) & 0xffu;
     uint8_t g = (hex >> 8u) & 0xffu;
@@ -64,7 +128,13 @@ uGRB32_t ws2812b_hex(uint32_t hex) {
     return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
 }
 
-// h = 0.0 to 360.0, s = 0.0 to 100.0, v = 0.0 to 100.0
+/**
+ * @brief Create a 24-bit color from HSV values.
+ * @param _h Hue (0.0-360.0).
+ * @param _s Saturation (0.0-100.0).
+ * @param _v Value (0.0-100.0).
+ * @return 24-bit color value.
+ */
 uGRB32_t ws2812b_hsv(float _h, float _s, float _v) {
     float r, g, b;
 	
@@ -90,18 +160,33 @@ uGRB32_t ws2812b_hsv(float _h, float _s, float _v) {
     return ((uint32_t)(r * 255) << 8) | ((uint32_t)(g * 255) << 16) | (uint32_t)(b * 255);
 }
 
+/**
+ * @brief Create a random 24-bit color.
+ * @param value Value (0.0-100.0).
+ * @return 24-bit color value.
+ */
 uGRB32_t ws2812b_random_color(float value) {
     init_random();
     float h = (rand() % 360);
     return ws2812b_hsv(h, 100.0f, value);
 }
 
-/* Rendering functions */
+/**
+ * @brief Rendering functions.
+ */
 
+/**
+ * @brief Write a pixel to the LED strip in blocking mode.
+ * @param pixel_grb 24-bit color value.
+ */
 static inline void ws2812b_write_blocking(uGRB32_t pixel_grb) {
     pio_sm_put_blocking(config.pio, config.pio_sm, pixel_grb << 8u);
 }
 
+/**
+ * @brief Render the LED strip.
+ * @return True if rendering was successful, false otherwise.
+ */
 static bool render() {
     if(request_render) {
         request_render = false;
@@ -128,11 +213,12 @@ static bool render() {
     }
 }
 
-/** Initialize the state machine
-* @param pio pio0 or pio1
-* @param data_gpio Data pin
-* @param num_pixels Number of pixels in your strip
-*/
+/**
+ * @brief Initialize the state machine.
+ * @param pio PIO instance.
+ * @param gpio GPIO pin.
+ * @param num_pixels Number of pixels in the LED strip.
+ */
 void ws2812b_init(PIO _pio, uint8_t gpio, uint16_t _num_pixels) {
     config.animation_step_ms = 20; // 20ms = 50fps animations
     config.num_pixels = _num_pixels;
@@ -156,10 +242,16 @@ void ws2812b_init(PIO _pio, uint8_t gpio, uint16_t _num_pixels) {
     add_repeating_timer_ms(5, render, NULL, &rendering_timer); // A 5ms timer caps framerate to 200fps
 }
 
+/**
+ * @brief Request a render of the current buffer state
+ */
 void ws2812b_render() {
     request_render = true;
 }
 
+/**
+ * @brief Clear the WS2812B buffer and request a render
+ */
 void ws2812b_clear() {
     for(uint32_t i=0; i<config.num_pixels; i++) {
         ws2812b_buffer[i] = 0;
@@ -167,10 +259,21 @@ void ws2812b_clear() {
     ws2812b_render();
 }
 
+/**
+ * @brief Set a single pixel in the WS2812B buffer
+ * @param pixel Pixel index
+ * @param grb 24-bit GRB color value
+ */
 void ws2812b_put(uint16_t pixel, uGRB32_t grb) {
     ws2812b_buffer[pixel] = grb;
 }
 
+/**
+ * @brief Fill a range of pixels in the WS2812B buffer
+ * @param from Start pixel index
+ * @param to End pixel index
+ * @param grb 24-bit GRB color value
+ */
 void ws2812b_fill(uint32_t from, uint32_t to, uGRB32_t grb) {
     if(from > to) {
         uint32_t temp = from;
@@ -182,55 +285,104 @@ void ws2812b_fill(uint32_t from, uint32_t to, uGRB32_t grb) {
     }
 }
 
+/**
+ * @brief Fill the entire WS2812B buffer with a single color
+ * @param grb 24-bit GRB color value
+ */
 void ws2812b_fill_all(uGRB32_t grb) {
     ws2812b_fill(0, config.num_pixels, grb);
 }
 
 /* Setters */
 
+/**
+ * @brief Set the animation frame rate
+ * @param fps Frames per second
+ */
 void ws2812b_config_set_fps(uint16_t fps) {
     config.animation_step_ms = 1000 / fps;
 }
 
+/**
+ * @brief Set the frame rate for a specific effect
+ * @param FX Effect descriptor
+ * @param fps Frames per second
+ */
 void ws2812b_set_fps(FX_t *FX, uint16_t fps) {
     FX->step_ms = 1000 / fps;
 }
 
+/**
+ * @brief Set the color inversion mode
+ * @param inverted True to invert colors, false otherwise
+ */
 void ws2812b_set_inverted(bool inverted) {
     config.inverted = inverted;
 }
 
+/**
+ * @brief Set the background color for an effect
+ * @param FX Effect descriptor
+ * @param grb 24-bit GRB color value
+ */
 void ws2812b_set_background(FX_t *FX, uGRB32_t grb) {
     FX->colors[1] = grb;
 }
 
+/**
+ * @brief Set the callback function for an effect
+ * @param FX Effect descriptor
+ * @param callback Function to call at the end of the effect
+ */
 void ws2812b_set_callback(FX_t *FX, void (*callback)(void *user_data)) {
     FX->callback = callback;
-};
+}
 
+/**
+ * @brief Set the global dimming level
+ * @param dim Dimming level (0-7)
+ */
 void ws2812b_set_global_dimming(uint8_t dim) {
     if(dim > 7) dim = 7;
     config.global_dimming = dim;
 }
 
+/**
+ * @brief Set a custom mask for the WS2812B buffer
+ * @param mask Array of mask values
+ */
 void ws2812b_set_mask(const uint8_t *mask) {
     config.global_mask = (uint8_t*)mask;
 }
 
+/**
+ * @brief Clear the mask and use the default one
+ */
 void ws2812b_clear_mask() {
     config.global_mask = no_mask;
 }
 
 /* Text functions */
 
+/**
+ * @brief Get the CP0_EU bitmap for a given Unicode code point
+ * @param codepoint Unicode code point
+ * @return Pointer to the bitmap data
+ */
 static char* get_CP0_EU(uint32_t codepoint) {
     uint16_t index = 0;
     while (index < 256 && CHARMAP_CP0_EU[index] != codepoint) ++index;
     if(index < 0 || index > 255) index = 215; // CHARMAP_CP0_EU[215] is a bullet glyph.
                                               // Use 0 for a blank one.
     return (char *)CP0_EU_8x8[index];
-};
+}
 
+/**
+ * @brief Type a character on the WS2812B strip
+ * @param id Alarm ID
+ * @param user_data Effect descriptor
+ * @return Time until the next call in microseconds
+ */
 static int64_t type_character(alarm_id_t id, void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     static bool is_gap; // Used to 'blink' between characters
@@ -272,6 +424,12 @@ static int64_t type_character(alarm_id_t id, void *user_data) {
     return FX->step_ms*1000;
 }
 
+/**
+ * @brief Scroll a string of text on the WS2812B strip
+ * @param id Alarm ID
+ * @param user_data Effect descriptor
+ * @return Time until the next call in microseconds
+ */
 static int64_t scroll_text(alarm_id_t id, void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     uint8_t set;
@@ -330,6 +488,13 @@ static int64_t scroll_text(alarm_id_t id, void *user_data) {
     return FX->step_ms*1000;
 }
 
+/**
+ * @brief Start a text typing effect on the WS2812B strip
+ * @param str String to type
+ * @param grb 24-bit GRB color value for the text
+ * @param delay Delay between characters in milliseconds
+ * @return Pointer to the effect descriptor
+ */
 FX_t* ws2812b_text_type(char *str, uGRB32_t grb, uint16_t delay) {
     FX_text.callback = noop;
     FX_text.str = str;
@@ -346,6 +511,13 @@ FX_t* ws2812b_text_type(char *str, uGRB32_t grb, uint16_t delay) {
     return &FX_text;
 }
 
+/**
+ * @brief Start a scrolling text effect on the WS2812B strip
+ * @param str String to scroll
+ * @param grb 24-bit GRB color value for the text
+ * @param delay Delay between frames in milliseconds
+ * @return Pointer to the effect descriptor
+ */
 FX_t* ws2812b_text_scroll(char *str, uGRB32_t grb, uint16_t delay) {
     FX_text.callback = noop;
     FX_text.str = str;
@@ -361,10 +533,14 @@ FX_t* ws2812b_text_scroll(char *str, uGRB32_t grb, uint16_t delay) {
     if (frame_by_frame_timer) cancel_alarm(frame_by_frame_timer);
     frame_by_frame_timer = add_alarm_in_ms(delay, scroll_text, &FX_text, false);
     return &FX_text;
-};
+}
 
 /* Sprite functions */
 
+/**
+ * @brief Display a sprite on the WS2812B strip
+ * @param sprite Pointer to the sprite data
+ */
 void ws2812b_sprite(const uGRB32_t *sprite) {
     for (uint8_t x=0; x<8; x++) {
         for (uint8_t y=0; y<8; y++) {
@@ -373,6 +549,11 @@ void ws2812b_sprite(const uGRB32_t *sprite) {
     }
 }
 
+/**
+ * @brief Display a tinted sprite on the WS2812B strip
+ * @param sprite Pointer to the sprite data
+ * @param grb 24-bit GRB color value for the tint
+ */
 void ws2812b_sprite_tint(const uGRB32_t *sprite, uGRB32_t grb) {
     for (uint8_t x=0; x<8; x++) {
         for (uint8_t y=0; y<8; y++) {
@@ -382,6 +563,12 @@ void ws2812b_sprite_tint(const uGRB32_t *sprite, uGRB32_t grb) {
     }
 }
 
+/**
+ * @brief Display a frame from a spritesheet on the WS2812B strip
+ * @param id Alarm ID
+ * @param user_data Effect descriptor
+ * @return Time until the next call in microseconds
+ */
 static int64_t spritesheet_frame(alarm_id_t id, void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     if(FX->canceled) {
@@ -406,8 +593,16 @@ static int64_t spritesheet_frame(alarm_id_t id, void *user_data) {
     return FX->step_ms*1000;
 }
 
+/**
+ * @brief Start a spritesheet animation on the WS2812B strip
+ * @param spritesheet Pointer to the array of sprite frames
+ * @param frames Number of frames in the spritesheet
+ * @param delay Delay between frames in milliseconds
+ * @param loops Number of loops (0 for infinite)
+ * @return Pointer to the effect descriptor
+ */
 FX_t* ws2812b_spritesheet(const uGRB32_t **spritesheet, uint8_t frames,
-                    uint16_t delay, uint32_t loops) {
+                          uint16_t delay, uint32_t loops) {
     FX_text.callback = noop;
     FX_text.spritesheet = spritesheet;
     FX_text.cursor = 0;
@@ -420,7 +615,7 @@ FX_t* ws2812b_spritesheet(const uGRB32_t **spritesheet, uint8_t frames,
     if (frame_by_frame_timer) cancel_alarm(frame_by_frame_timer);
     frame_by_frame_timer = add_alarm_in_ms(delay, spritesheet_frame, &FX_text, false);
     return &FX_text;
-};
+}
 
 /* Procedural effects */
 
@@ -430,6 +625,10 @@ colors[0]: effect
 colors[1]: background, drawn only after the cursor has left a position
 param: eases the movement if true
 */
+/**
+ * @brief Scan effect, draws a running pixel
+ * @param user_data Effect descriptor
+ */
 static void fx_scan(void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     static uint16_t last_p = 0xffff;
@@ -455,10 +654,14 @@ Progressively lights up pixels from start to end. Linear.
 colors[0]: effect
 param: not used
 */
+/**
+ * @brief Wipe effect function
+ * @param user_data Effect descriptor
+ */
 static void fx_wipe(void *user_data) {
     FX_t* FX = (FX_t*)user_data;
-        ws2812b_fill(((FX->dir == 1) ? FX->start : FX->end),
-                                FX->cursor, FX->colors[0]);
+    ws2812b_fill(((FX->dir == 1) ? FX->start : FX->end),
+                 FX->cursor, FX->colors[0]);
 }
 
 /* FX_RANDOM
@@ -466,6 +669,10 @@ Draws each pixel in a different color, on every step
 colors[0-7]: effect
 param: specifies the number of colors to use (2 to 8, default 8)
 */
+/**
+ * @brief Random effect function
+ * @param user_data Effect descriptor
+ */
 static void fx_random(void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     for(uint32_t i = FX->from; i <= FX->to; i++) {
@@ -480,6 +687,10 @@ Fills all pixels between start and end, using one of two alternating colors
 colors[0-1]: effect
 param: duration of the effect in steps
 */
+/**
+ * @brief Blink effect function
+ * @param user_data Effect descriptor
+ */
 static void fx_blink(void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     bool is_odd = (FX->cursor) % 2;
@@ -491,6 +702,10 @@ Alternates running pixels of multiple colors
 colors[0-7]: effect
 param: specifies the number of colors to use (2 to 8, default 2)
 */
+/**
+ * @brief Chaser effect function
+ * @param user_data Effect descriptor
+ */
 static void fx_chaser(void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     uint8_t wrap = 2;
@@ -507,6 +722,10 @@ colors[0]: effect
 param: not used
 Note: the effect won't work with global dimming set to high values
 */
+/**
+ * @brief Fade effect function
+ * @param user_data Effect descriptor
+ */
 static void fx_fade(void *user_data) {
     FX_t* FX = (FX_t*)user_data;
     if(FX->ending) return;
@@ -521,6 +740,12 @@ static void fx_fade(void *user_data) {
     ws2812b_fill(FX->from, FX->to, ws2812b_rgb((uint8_t)r, (uint8_t)g, (uint8_t)b));
 }
 
+/**
+ * @brief Step function for animations
+ * @param id Alarm ID
+ * @param user_data Effect descriptor
+ * @return Time until the next call in microseconds
+ */
 static int64_t animation_step(alarm_id_t id, void *user_data) {
     FX_t* FX = (FX_t*)user_data;
 
@@ -558,16 +783,14 @@ static int64_t animation_step(alarm_id_t id, void *user_data) {
 }
 
 /**
- * Animate pixels between the selected range, using one of the
- * effects presets (chaser, using one pixel only) and one color,
- * playing it three times.
- * 
- *  @param from
- *  @param to Invert to-from values to change direction
- *  @param fx See README for a complete list of presets
- *  @param colors An array of length 8
- *  @param loops Set to 0 to loop infinitely
- *  @param param Function-specific parameter
+ * @brief Animate pixels between the selected range using an effect preset
+ * @param from Start pixel index
+ * @param to End pixel index (invert to-from values to change direction)
+ * @param mode Effect mode (see README for a complete list of presets)
+ * @param colors Array of 8 24-bit GRB color values
+ * @param loops Number of loops (0 for infinite)
+ * @param param Function-specific parameter
+ * @return Pointer to the effect descriptor
  */
 FX_t* ws2812b_animate(uint32_t from, uint32_t to, FX_mode_t mode,
                     const uGRB32_t colors[8], uint32_t loops, uint32_t param) {
@@ -595,43 +818,48 @@ FX_t* ws2812b_animate(uint32_t from, uint32_t to, FX_mode_t mode,
     switch(mode) {
         case FX_SCAN:
             fxs[seg_id].fx_function = fx_scan;
-        break;
+            break;
         case FX_WIPE:
             fxs[seg_id].fx_function = fx_wipe;
             fxs[seg_id].clear_on_end = false;
-        break;
+            break;
         case FX_CHASER:
             fxs[seg_id].fx_function = fx_chaser;
-        break;
+            break;
         case FX_BLINK:
             fxs[seg_id].start = 0;
-            fxs[seg_id].end = (param ? param - 1 : 3); // 0 to 3 is 4 blinks as a defalt value
+            fxs[seg_id].end = (param ? param - 1 : 3); // 0 to 3 is 4 blinks as a default value
             fxs[seg_id].dir = 1; // Override
             fxs[seg_id].cursor = 0; // Override
             fxs[seg_id].fx_function = fx_blink;
-        break;
+            break;
         case FX_RANDOM:
             init_random();
             fxs[seg_id].start = 0;
-            fxs[seg_id].end = (param ? param - 1 : 3); // 0 to 3 is 4 blinks as a defalt value
+            fxs[seg_id].end = (param ? param - 1 : 3); // 0 to 3 is 4 blinks as a default value
             fxs[seg_id].dir = 1; // Override
             fxs[seg_id].cursor = 0; // Override
             fxs[seg_id].fx_function = fx_random;
             fxs[seg_id].clear_on_end = false;
-        break;
+            break;
         case FX_FADE:
             fxs[seg_id].start = 0;
             fxs[seg_id].end = 100;
             fxs[seg_id].cursor = ((from <= to) ? 0 : 100);
             fxs[seg_id].fx_function = fx_fade;
             fxs[seg_id].clear_on_end = false;
-        break;
+            break;
     }
     if(animation_timers[seg_id]) cancel_alarm(animation_timers[seg_id]);
     animation_timers[seg_id] = add_alarm_in_ms(config.animation_step_ms, animation_step, &fxs[seg_id], false);
     return &fxs[seg_id];
 }
 
+/**
+ * @brief Cancel an ongoing effect
+ * @param FX Effect descriptor
+ */
 void ws2812b_cancel(FX_t* FX){
     FX->canceled = true;
 }
+
