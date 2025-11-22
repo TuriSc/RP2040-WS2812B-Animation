@@ -132,5 +132,6 @@ RP2040-WS2812B-Animation is an original project.<br>
 It uses [PIO code](https://github.com/raspberrypi/pico-examples/blob/master/pio/ws2812/ws2812.pio) by Raspberry Pi (Trading) Ltd, licensed under BSD 3.
 
 ### Version history
-- 2023-12-09 - v1.0.1 - Added ws2812b_cancel
+- 2025-11-22 - v1.0.2 - Fix malloc size bug in ws2812b_init(); add error handling, cleanup function
+- 2023-12-09 - v1.0.1 - Add ws2812b_cancel
 - 2023-11-30 - v1.0.0 - First release

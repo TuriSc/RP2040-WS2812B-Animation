@@ -266,6 +266,11 @@ uGRB32_t ws2812b_random_color(float value);
 void ws2812b_init(PIO _pio, uint8_t gpio, uint16_t num_pixels);
 
 /**
+ * @brief Deinitialize the WS2812B library and free allocated resources
+ */
+void ws2812b_deinit(void);
+
+/**
  * @brief Render the LED strip.
  */
 void ws2812b_render();

@@ -228,18 +228,70 @@ void ws2812b_init(PIO _pio, uint8_t gpio, uint16_t _num_pixels) {
     ws2812_program_init(_pio, config.pio_sm, offset, gpio, WS2812B_FREQ_HZ, WS2812B_IS_RGBW);
     
     // Allocate memory to store pixel data
-    ws2812b_buffer = malloc(_num_pixels * sizeof(ws2812b_buffer));
+    ws2812b_buffer = malloc(_num_pixels * sizeof(uGRB32_t));
+    if (!ws2812b_buffer) return;
+    
     for (uint32_t i = 0; i < _num_pixels; i++) {
         ws2812b_buffer[i] = 0;
     }
 
     // Initialize masks
     config.global_mask = malloc(_num_pixels * sizeof(uint8_t));
+    if (!config.global_mask) {
+        free(ws2812b_buffer);
+        ws2812b_buffer = NULL;
+        return;
+    }
+    
     no_mask = malloc(_num_pixels * sizeof(uint8_t));
+    if (!no_mask) {
+        free(ws2812b_buffer);
+        free(config.global_mask);
+        ws2812b_buffer = NULL;
+        config.global_mask = NULL;
+        return;
+    }
+    
     memset(no_mask, 1, _num_pixels);
     ws2812b_clear_mask();
 
     add_repeating_timer_ms(5, render, NULL, &rendering_timer); // A 5ms timer caps framerate to 200fps
+}
+
+/**
+ * @brief Deinitialize the WS2812B library and free allocated resources
+ */
+void ws2812b_deinit(void) {
+    cancel_repeating_timer(&rendering_timer);
+    
+    // Cancel all animation timers
+    for (uint8_t i = 0; i < MAX_EFFECTS; i++) {
+        if (animation_timers[i]) {
+            cancel_alarm(animation_timers[i]);
+            animation_timers[i] = 0;
+        }
+    }
+    
+    if (frame_by_frame_timer) {
+        cancel_alarm(frame_by_frame_timer);
+        frame_by_frame_timer = 0;
+    }
+    
+    // Free allocated memory
+    if (ws2812b_buffer) {
+        free(ws2812b_buffer);
+        ws2812b_buffer = NULL;
+    }
+    
+    if (config.global_mask) {
+        free(config.global_mask);
+        config.global_mask = NULL;
+    }
+    
+    if (no_mask) {
+        free(no_mask);
+        no_mask = NULL;
+    }
 }
 
 /**
