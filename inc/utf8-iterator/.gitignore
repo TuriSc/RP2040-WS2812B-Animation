@@ -1,0 +1,15 @@
+*.o
+*.d
+*.so
+*.exe
+*.ini
+*.tags*
+
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+
+.vscode
+
+build/
+notes/
